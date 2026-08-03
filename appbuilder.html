@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TysonBlog Salesforce App Builder問題集</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#12141c; --panel:#1b1e2b; --panel2:#232739;
+  --ink:#eef0f6; --sub:#9aa0b4; --accent:#5b8def; --accent2:#f2a154;
+  --good:#4cc98a; --bad:#e8607a; --border:#2c3044;
+}
+*{box-sizing:border-box;}
+body{ margin:0; background:var(--bg); color:var(--ink); font-family:'Zen Kaku Gothic New', sans-serif; min-height:100vh; display:flex; justify-content:center; }
+.app{ width:100%; max-width:720px; padding:24px 18px 60px; }
+.header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:18px; }
+.brand{ font-weight:900; font-size:1.05rem; letter-spacing:.02em; }
+.brand span{ color:var(--accent2); }
+.counter{ font-family:'JetBrains Mono', monospace; color:var(--sub); font-size:.85rem; }
+.progress-track{ height:6px; background:var(--panel2); border-radius:99px; overflow:hidden; margin-bottom:26px; }
+.progress-fill{ height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .3s ease; }
+
+.card{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:26px 22px; }
+.qmeta{ font-family:'JetBrains Mono', monospace; font-size:.75rem; color:var(--accent2); margin-bottom:10px; letter-spacing:.05em; }
+.qmulti{ display:inline-block; background:var(--panel2); color:var(--sub); font-size:.7rem; padding:3px 9px; border-radius:99px; margin-left:8px; }
+.qdomain{ display:inline-block; background:#28304a; color:var(--accent); font-size:.7rem; padding:3px 9px; border-radius:99px; margin-left:8px; }
+.question{ font-size:1.05rem; line-height:1.75; margin-bottom:22px; white-space:pre-wrap; }
+
+.choice{ display:flex; gap:12px; align-items:flex-start; background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:.15s; }
+.choice:hover{ border-color:var(--accent); }
+.choice.selected{ border-color:var(--accent); background:#232a45; }
+.choice.correct{ border-color:var(--good); background:#173328; }
+.choice.incorrect{ border-color:var(--bad); background:#3a1c26; }
+.choice.missed{ border-color:var(--good); background:#173328; opacity:.75; }
+.mark{ flex:0 0 22px; height:22px; border-radius:6px; border:1.5px solid var(--sub); display:flex; align-items:center; justify-content:center; font-size:.75rem; margin-top:2px; color:transparent; }
+.choice.selected .mark{ border-color:var(--accent); background:var(--accent); color:#0b0d13; }
+.choice.correct .mark{ border-color:var(--good); background:var(--good); color:#0b0d13; }
+.choice.incorrect .mark{ border-color:var(--bad); background:var(--bad); color:#fff; }
+.choice.missed .mark{ border-color:var(--good); background:var(--good); color:#0b0d13; }
+.ctext{ font-size:.96rem; line-height:1.6; }
+.explain{ font-size:.85rem; color:var(--sub); line-height:1.65; margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); display:none; white-space:pre-wrap; }
+.explain.show{ display:block; }
+
+.actions{ display:flex; gap:10px; margin-top:22px; }
+button{ font-family:inherit; font-weight:700; font-size:.92rem; border:none; border-radius:10px; padding:13px 20px; cursor:pointer; transition:.15s; }
+.btn-primary{ background:var(--accent); color:#0b0d13; flex:1; }
+.btn-primary:disabled{ background:var(--panel2); color:var(--sub); cursor:not-allowed; }
+.btn-ghost{ background:transparent; color:var(--sub); border:1px solid var(--border); }
+.btn-block{ width:100%; margin-bottom:10px; text-align:left; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:16px 18px; }
+.btn-block:hover{ border-color:var(--accent); }
+.btn-block b{ display:block; font-size:.95rem; margin-bottom:3px; }
+.btn-block small{ color:var(--sub); font-weight:400; }
+.result-banner{ margin-top:16px; padding:12px 16px; border-radius:10px; font-weight:700; font-size:.92rem; display:none; }
+.result-banner.show{ display:block; }
+.result-banner.ok{ background:#173328; color:var(--good); }
+.result-banner.ng{ background:#3a1c26; color:var(--bad); }
+
+.score-panel{ display:flex; justify-content:space-between; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 20px; margin-bottom:18px; font-family:'JetBrains Mono',monospace; font-size:.85rem; }
+.score-panel b{ color:var(--ink); font-size:1rem; }
+
+.end-screen{ text-align:center; padding:40px 20px; }
+.end-screen h2{ font-size:1.6rem; margin-bottom:8px; }
+.end-screen p{ color:var(--sub); margin-bottom:24px; }
+.footer-note{ text-align:center; color:var(--sub); font-size:.72rem; margin-top:30px; }
+
+.browse-item{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:10px; cursor:pointer; }
+.browse-item:hover{ border-color:var(--accent); }
+.browse-item .bq{ font-size:.9rem; line-height:1.6; }
+.browse-item .bmeta{ font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--accent2); margin-bottom:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.search-box{ width:100%; padding:13px 14px; border-radius:10px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); font-family:inherit; font-size:.92rem; margin-bottom:14px; }
+.loading{ text-align:center; padding:60px 20px; color:var(--sub); }
+.section-title{ font-size:.8rem; color:var(--sub); margin:22px 0 10px; letter-spacing:.05em; }
+
+.domain-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:10px; cursor:pointer; transition:.15s; }
+.domain-card:hover{ border-color:var(--accent); }
+.domain-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+.domain-name{ font-weight:700; font-size:.95rem; }
+.domain-weight{ font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--sub); }
+.domain-bar-track{ height:8px; background:var(--panel2); border-radius:99px; overflow:hidden; margin-bottom:6px; }
+.domain-bar-fill{ height:100%; border-radius:99px; }
+.domain-stats{ display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--sub); }
+.domain-stats .acc{ font-weight:700; }
+.acc-good{ color:var(--good); }
+.acc-mid{ color:var(--accent2); }
+.acc-bad{ color:var(--bad); }
+.acc-none{ color:var(--sub); }
+select{ width:100%; padding:13px 14px; border-radius:10px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); font-family:inherit; font-size:.92rem; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+const DATA_URL = 'https://raw.githubusercontent.com/ryotanopon422422-cmyk/tysonblog-sfadmin-quiz/main/appbuilder-questions.json';
+const STATS_KEY = 'appbuilder_domain_stats_v1';
+
+// ---- 出題分野の定義 (Salesforce公式Exam Guideより) ----
+const DOMAINS = [
+  { id: 'fundamentals', name: 'Salesforceの基礎', weight: 23, color: '#5b8def',
+    keywords: ['共有設定','組織全体のデフォルト','共有ルール','ロール階層','プロファイル','権限セット','オブジェクトレベルセキュリティ','項目レベルセキュリティ','レコードレベルセキュリティ','項目レベルの','レポートタイプ','ダッシュボード','レポート','モバイル','Salesforceモバイル','Chatter','AppExchange','ライセンス','手動共有','参照権限','編集権限','グループ','公開グループ','階層を使用','非公開','パブリック','クロスオブジェクト共有']
+  },
+  { id: 'datamodel', name: 'データモデルと管理', weight: 22, color: '#8b7cf6',
+    keywords: ['主従関係','参照関係','リレーション','データ型','項目タイプ','スキーマビルダー','データインポート','データエクスポート','外部オブジェクト','外部データソース','データローダー','インポートウィザード','重複ルール','照合ルール','自己参照関係','間接参照関係','多対多','連結オブジェクト','項目の作成','項目を作成','カスタムオブジェクト','必須項目','一意性項目','外部ID']
+  },
+  { id: 'businesslogic', name: 'ビジネスロジックとプロセス自動化', weight: 28, color: '#f2a154',
+    keywords: ['数式項目','積み上げ集計','入力規則','承認プロセス','ワークフロールール','プロセスビルダー','フロー','Flow','トリガー','Apex','自動化','バリデーション','ルックアップフィルタ','スケジュールフロー','レコードトリガーフロー','一括処理','クイックアクション(自動)','項目更新']
+  },
+  { id: 'ui', name: 'ユーザーインターフェース', weight: 17, color: '#4cc98a',
+    keywords: ['ページレイアウト','Lightningレコードページ','コンパクトレイアウト','カスタムボタン','カスタムリンク','クイックアクション','グローバルアクション','Lightningコンポーネント','Visualforce','ユーティリティバー','パスコンポーネント','リストビュー','Lightning App Builder','タブ','ホームページ','お気に入り','Kanban','動的フォーム','条件付き表示','App Builder(画面)','コンポーネント']
+  },
+  { id: 'deployment', name: 'アプリケーションのデプロイ', weight: 10, color: '#e8607a',
+    keywords: ['サンドボックス','チェンジセット','変更セット','管理パッケージ','非管理パッケージ','パッケージ','デプロイ','リリース管理','AppExchange配布','Metadata API','名前空間','本番環境へ','移行']
+  }
+];
+
+function classifyDomain(q){
+  const text = (q.question || '') + ' ' + (q.options||[]).join(' ') + ' ' + (q.explanation || '');
+  let best = null, bestScore = 0;
+  DOMAINS.forEach(d=>{
+    let score = 0;
+    d.keywords.forEach(kw=>{
+      if(text.includes(kw)) score++;
+    });
+    if(score > bestScore){ bestScore = score; best = d; }
+  });
+  return best ? best.id : 'fundamentals';
+}
+
+function loadStats(){
+  try{
+    const raw = localStorage.getItem(STATS_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const s = {};
+  DOMAINS.forEach(d=> s[d.id] = {asked:0, correct:0});
+  return s;
+}
+function saveStats(stats){
+  try{ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }catch(e){}
+}
+
+const state = {
+  all: [],
+  mode: null,
+  queue: [],
+  idx: 0,
+  selected: new Set(),
+  answered: false,
+  correctCount: 0,
+  wrongList: [],
+  quizSize: 0,
+  searchTerm: '',
+  filterDomain: null,
+  stats: loadStats()
+};
+
+const app = document.getElementById('app');
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function isMulti(q){ return q.correct.length > 1; }
+function domainInfo(id){ return DOMAINS.find(d=>d.id===id) || DOMAINS[0]; }
+
+function accClass(pct, asked){
+  if(!asked) return 'acc-none';
+  if(pct >= 80) return 'acc-good';
+  if(pct >= 60) return 'acc-mid';
+  return 'acc-bad';
+}
+
+function render(){
+  window.scrollTo(0,0);
+  if(state.mode === 'home') return renderHome();
+  if(state.mode === 'domains') return renderDomains();
+  if(state.mode === 'quiz') return renderQuiz();
+  if(state.mode === 'browse') return renderBrowse();
+  if(state.mode === 'browseDetail') return renderBrowseDetail();
+  if(state.mode === 'end') return renderEnd();
+}
+
+function renderHome(){
+  const total = state.all.length;
+  const totalAsked = DOMAINS.reduce((s,d)=> s + (state.stats[d.id]?.asked||0), 0);
+
+  const domainSummaryHtml = DOMAINS.map(d=>{
+    const st = state.stats[d.id] || {asked:0, correct:0};
+    const pct = st.asked ? Math.round((st.correct/st.asked)*100) : null;
+    const cls = accClass(pct, st.asked);
+    return `
+      <div class="domain-card" data-domain="${d.id}" style="padding:12px 16px;margin-bottom:8px;">
+        <div class="domain-head" style="margin-bottom:6px;">
+          <div class="domain-name" style="font-size:.85rem;">${d.name}</div>
+          <div class="acc ${cls}" style="font-family:'JetBrains Mono',monospace;font-size:.78rem;">${pct===null ? '未着手' : pct+'%'}</div>
+        </div>
+        <div class="domain-bar-track" style="height:6px;"><div class="domain-bar-fill" style="width:${pct===null?0:pct}%; background:${d.color};"></div></div>
+      </div>
+    `;
+  }).join('');
+
+  const weakest = DOMAINS
+    .map(d=>({d, st: state.stats[d.id]||{asked:0,correct:0}}))
+    .filter(x=>x.st.asked >= 3)
+    .sort((a,b)=> (a.st.correct/a.st.asked) - (b.st.correct/b.st.asked))[0];
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="brand">TYSONBLOG <span>App Builder</span></div>
+      <div class="counter">全${total}問</div>
+    </div>
+
+    <div class="section-title" style="margin-top:0;">分野別正答率${totalAsked===0 ? '(まだ演習記録なし)' : ''}</div>
+    ${weakest ? `<div class="result-banner show ng" style="margin-bottom:10px;">苦手分野: ${weakest.d.name}(${Math.round(weakest.st.correct/weakest.st.asked*100)}%) — 重点的に演習しましょう</div>` : ''}
+    ${domainSummaryHtml}
+    <button class="btn-ghost" id="btnDomainsDetail" style="width:100%;margin:4px 0 22px;">分野別に絞って演習する →</button>
+
+    <div class="card">
+      <div class="qmeta">MODE SELECT</div>
+      <div class="question" style="margin-bottom:18px;">Salesforce認定Platformアプリケーションビルダー試験対策。学習モードを選んでください。</div>
+
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+        <input type="range" id="qCountSlider" min="1" max="50" value="10" style="flex:1;">
+        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; min-width:52px; text-align:right;"><span id="qCountLabel">10</span>問</div>
+      </div>
+      <button class="btn-primary" id="btnStartCustom" style="width:100%; margin-bottom:10px;">この問題数でランダム開始</button>
+      <button class="btn-block" data-run="${total}"><b>全${total}問ランダム</b><small>本番同様に一周</small></button>
+      <button class="btn-block" id="btnBrowse"><b>全問題を見る</b><small>検索・一覧から復習したい問題を選ぶ</small></button>
+    </div>
+    <div class="footer-note">Source: TysonBlog — Salesforce認定Platformアプリケーションビルダー試験対策<br>分野分類はSalesforce公式Exam Guideの出題比率に基づく自動判定です</div>
+  `;
+  app.querySelectorAll('[data-run]').forEach(b=>{
+    b.addEventListener('click', ()=> startQuiz(parseInt(b.dataset.run,10), null));
+  });
+  const slider = document.getElementById('qCountSlider');
+  const label = document.getElementById('qCountLabel');
+  slider.addEventListener('input', ()=>{ label.textContent = slider.value; });
+  document.getElementById('btnStartCustom').addEventListener('click', ()=>{
+    startQuiz(Math.min(parseInt(slider.value,10), total), null);
+  });
+  document.getElementById('btnDomainsDetail').addEventListener('click', ()=>{ state.mode='domains'; render(); });
+  document.getElementById('btnBrowse').addEventListener('click', ()=>{
+    state.mode='browse'; state.searchTerm=''; state.filterDomain=null; render();
+  });
+  app.querySelectorAll('.domain-card[data-domain]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const domId = el.dataset.domain;
+      const pool = state.all.filter(q=>q.domain===domId);
+      const n = Math.min(15, pool.length);
+      startQuiz(n, domId);
+    });
+  });
+}
+
+function renderDomains(){
+  const rows = DOMAINS.map(d=>{
+    const qs = state.all.filter(q=>q.domain===d.id);
+    const st = state.stats[d.id] || {asked:0, correct:0};
+    const pct = st.asked ? Math.round((st.correct/st.asked)*100) : null;
+    const cls = accClass(pct, st.asked);
+    return `
+      <div class="domain-card" data-domain="${d.id}">
+        <div class="domain-head">
+          <div class="domain-name">${d.name}</div>
+          <div class="domain-weight">出題比率 ${d.weight}% ・ ${qs.length}問</div>
+        </div>
+        <div class="domain-bar-track"><div class="domain-bar-fill" style="width:${pct===null?0:pct}%; background:${d.color};"></div></div>
+        <div class="domain-stats">
+          <div>これまでの演習: ${st.asked}問</div>
+          <div class="acc ${cls}">${pct===null ? '未着手' : '正答率 '+pct+'%'}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const totalAsked = DOMAINS.reduce((s,d)=> s + (state.stats[d.id]?.asked||0), 0);
+  const weakest = DOMAINS
+    .map(d=>({d, st: state.stats[d.id]||{asked:0,correct:0}}))
+    .filter(x=>x.st.asked >= 3)
+    .sort((a,b)=> (a.st.correct/a.st.asked) - (b.st.correct/b.st.asked))[0];
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="brand">TYSONBLOG <span>App Builder</span></div>
+      <div class="counter">分野別成績</div>
+    </div>
+    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホームへ戻る</button>
+    ${weakest ? `<div class="result-banner show ng" style="margin-bottom:16px;">苦手分野: ${weakest.d.name}(正答率${Math.round(weakest.st.correct/weakest.st.asked*100)}%) — 重点的に演習しましょう</div>` : ''}
+    ${totalAsked===0 ? `<div class="footer-note" style="margin-bottom:16px;">まだ演習記録がありません。分野をタップしてランダム出題を始めましょう。</div>` : ''}
+    ${rows}
+    ${totalAsked>0 ? `<button class="btn-ghost" id="btnResetStats" style="width:100%;margin-top:8px;">成績をリセット</button>` : ''}
+  `;
+  document.getElementById('btnBackHome').addEventListener('click', ()=>{ state.mode='home'; render(); });
+  const resetBtn = document.getElementById('btnResetStats');
+  if(resetBtn) resetBtn.addEventListener('click', ()=>{
+    if(confirm('分野別の成績記録をリセットしますか？')){
+      state.stats = {}; DOMAINS.forEach(d=> state.stats[d.id]={asked:0,correct:0});
+      saveStats(state.stats); render();
+    }
+  });
+  app.querySelectorAll('.domain-card').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const domId = el.dataset.domain;
+      const pool = state.all.filter(q=>q.domain===domId);
+      const n = Math.min(15, pool.length);
+      startQuiz(n, domId);
+    });
+  });
+}
+
+function startQuiz(n, domainId){
+  const pool = domainId ? state.all.filter(q=>q.domain===domainId) : state.all;
+  state.queue = shuffle(pool).slice(0, n);
+  state.idx = 0;
+  state.correctCount = 0;
+  state.wrongList = [];
+  state.quizSize = state.queue.length;
+  state.mode = 'quiz';
+  state.selected = new Set();
+  state.answered = false;
+  state.currentDomainFilter = domainId;
+  render();
+}
+
+function currentQ(){ return state.queue[state.idx]; }
+
+function renderQuiz(){
+  const q = currentQ();
+  const total = state.quizSize;
+  const pct = Math.round((state.idx / total) * 100);
+  const multi = isMulti(q);
+  const dom = domainInfo(q.domain);
+
+  const choicesHtml = q.options.map((opt, i)=>{
+    let cls = 'choice';
+    const sel = state.selected.has(i);
+    const isCorrectOpt = q.correct.includes(opt);
+    if(state.answered){
+      if(sel && isCorrectOpt) cls += ' correct';
+      else if(sel && !isCorrectOpt) cls += ' incorrect';
+      else if(!sel && isCorrectOpt) cls += ' missed';
+    } else if(sel){
+      cls += ' selected';
+    }
+    const markChar = state.answered ? (isCorrectOpt ? '✓' : (sel ? '✕' : '')) : (sel ? '✓' : '');
+    return `<div class="${cls}" data-i="${i}">
+      <div class="mark">${markChar}</div>
+      <div class="ctext">${escapeHtml(opt)}</div>
+    </div>`;
+  }).join('');
+
+  const allCorrect = state.answered && q.correct.every(c=>{
+    const i = q.options.indexOf(c);
+    return state.selected.has(i);
+  }) && state.selected.size === q.correct.length;
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="brand">TYSONBLOG <span>App Builder</span></div>
+      <div class="counter">${state.idx+1} / ${total}</div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="score-panel">
+      <div>正解 <b style="color:var(--good)">${state.correctCount}</b></div>
+      <div>不正解 <b style="color:var(--bad)">${state.wrongList.length}</b></div>
+      <div>問題番号 <b>#${q.num}</b></div>
+    </div>
+    <div class="card">
+      <div class="qmeta">第${q.num}問 ${multi ? `<span class="qmulti">複数選択(${q.correct.length}つ)</span>` : '<span class="qmulti">単一選択</span>'}<span class="qdomain">${dom.name}</span></div>
+      <div class="question">${escapeHtml(q.question)}</div>
+      <div id="choices">${choicesHtml}</div>
+      <div class="result-banner ${state.answered ? 'show '+(allCorrect?'ok':'ng') : ''}">${state.answered ? (allCorrect ? '正解です！' : '不正解...') : ''}</div>
+      <div class="explain ${state.answered ? 'show':''}">${state.answered ? escapeHtml(q.explanation) : ''}</div>
+      <div class="actions">
+        ${state.answered
+          ? `<button class="btn-primary" id="btnNext">${state.idx+1 < total ? '次の問題へ' : '結果を見る'}</button>`
+          : `<button class="btn-primary" id="btnSubmit" ${state.selected.size===0?'disabled':''}>回答する</button>`}
+        <button class="btn-ghost" id="btnQuit">中断してホームへ</button>
+      </div>
+    </div>
+  `;
+
+  if(!state.answered){
+    app.querySelectorAll('.choice').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const i = parseInt(el.dataset.i,10);
+        if(multi){
+          if(state.selected.has(i)) state.selected.delete(i);
+          else state.selected.add(i);
+        } else {
+          state.selected = new Set([i]);
+        }
+        render();
+      });
+    });
+    const submitBtn = document.getElementById('btnSubmit');
+    if(submitBtn) submitBtn.addEventListener('click', submitAnswer);
+  } else {
+    document.getElementById('btnNext').addEventListener('click', nextQuestion);
+  }
+  document.getElementById('btnQuit').addEventListener('click', ()=>{ state.mode='home'; render(); });
+}
+
+function submitAnswer(){
+  const q = currentQ();
+  const selectedTexts = Array.from(state.selected).map(i=>q.options[i]);
+  const isCorrect = selectedTexts.length === q.correct.length &&
+    q.correct.every(c=>selectedTexts.includes(c));
+  state.answered = true;
+  if(isCorrect) state.correctCount++;
+  else state.wrongList.push(q);
+
+  // 分野別成績を記録
+  const st = state.stats[q.domain] || {asked:0, correct:0};
+  st.asked++;
+  if(isCorrect) st.correct++;
+  state.stats[q.domain] = st;
+  saveStats(state.stats);
+
+  render();
+}
+
+function nextQuestion(){
+  if(state.idx+1 < state.quizSize){
+    state.idx++;
+    state.selected = new Set();
+    state.answered = false;
+    render();
+  } else {
+    state.mode = 'end';
+    render();
+  }
+}
+
+function renderEnd(){
+  const total = state.quizSize;
+  const rate = total ? Math.round((state.correctCount/total)*100) : 0;
+
+  // 今回の演習分の分野別内訳
+  const domainBreak = {};
+  state.queue.forEach(q=>{
+    domainBreak[q.domain] = domainBreak[q.domain] || {asked:0, correct:0};
+    domainBreak[q.domain].asked++;
+  });
+  state.queue.forEach((q, i)=>{
+    if(!state.wrongList.includes(q)) domainBreak[q.domain].correct++;
+  });
+  const breakHtml = Object.keys(domainBreak).length > 1 ? `
+    <div class="section-title">今回の分野別内訳</div>
+    ${Object.entries(domainBreak).map(([id,st])=>{
+      const d = domainInfo(id);
+      const p = Math.round(st.correct/st.asked*100);
+      return `<div class="domain-card">
+        <div class="domain-head"><div class="domain-name">${d.name}</div><div class="domain-weight">${st.correct}/${st.asked}</div></div>
+        <div class="domain-bar-track"><div class="domain-bar-fill" style="width:${p}%; background:${d.color};"></div></div>
+      </div>`;
+    }).join('')}
+  ` : '';
+
+  const wrongHtml = state.wrongList.length ? `
+    <div class="section-title">間違えた問題(${state.wrongList.length}問)</div>
+    ${state.wrongList.map(q=>`
+      <div class="browse-item" data-num="${q.num}">
+        <div class="bmeta">第${q.num}問 <span class="qdomain" style="margin-left:0;">${domainInfo(q.domain).name}</span></div>
+        <div class="bq">${escapeHtml(q.question.slice(0,60))}${q.question.length>60?'…':''}</div>
+      </div>
+    `).join('')}
+  ` : '';
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="brand">TYSONBLOG <span>App Builder</span></div>
+    </div>
+    <div class="card end-screen">
+      <h2>${rate}%</h2>
+      <p>${total}問中 ${state.correctCount}問正解</p>
+      <button class="btn-primary" id="btnRetry" style="width:100%;margin-bottom:10px;">同じ条件でもう一度(ランダム)</button>
+      <button class="btn-ghost" id="btnDomainsGo" style="width:100%;margin-bottom:10px;">分野別成績を見る</button>
+      <button class="btn-ghost" id="btnHome" style="width:100%;">ホームへ戻る</button>
+    </div>
+    ${breakHtml}
+    ${wrongHtml}
+  `;
+  document.getElementById('btnRetry').addEventListener('click', ()=> startQuiz(state.quizSize, state.currentDomainFilter));
+  document.getElementById('btnDomainsGo').addEventListener('click', ()=>{ state.mode='domains'; render(); });
+  document.getElementById('btnHome').addEventListener('click', ()=>{ state.mode='home'; render(); });
+  app.querySelectorAll('.browse-item[data-num]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const num = parseInt(el.dataset.num,10);
+      openBrowseDetail(state.all.find(q=>q.num===num));
+    });
+  });
+}
+
+function renderBrowse(){
+  const term = state.searchTerm.trim();
+  let filtered = state.all;
+  if(state.filterDomain) filtered = filtered.filter(q=>q.domain===state.filterDomain);
+  if(term) filtered = filtered.filter(q => q.question.includes(term) || String(q.num)===term);
+
+  const domainOptions = DOMAINS.map(d=>`<option value="${d.id}" ${state.filterDomain===d.id?'selected':''}>${d.name}</option>`).join('');
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="brand">TYSONBLOG <span>App Builder</span></div>
+      <div class="counter">${filtered.length} / ${state.all.length}問</div>
+    </div>
+    <input class="search-box" id="searchBox" placeholder="キーワードまたは問題番号で検索..." value="${escapeHtml(state.searchTerm)}">
+    <select id="domainFilter">
+      <option value="">すべての分野</option>
+      ${domainOptions}
+    </select>
+    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホームへ戻る</button>
+    <div id="list">
+      ${filtered.map(q=>`
+        <div class="browse-item" data-num="${q.num}">
+          <div class="bmeta">第${q.num}問 <span class="qdomain" style="margin-left:0;">${domainInfo(q.domain).name}</span></div>
+          <div class="bq">${escapeHtml(q.question.slice(0,70))}${q.question.length>70?'…':''}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  document.getElementById('btnBackHome').addEventListener('click', ()=>{ state.mode='home'; render(); });
+  const searchBox = document.getElementById('searchBox');
+  searchBox.addEventListener('input', (e)=>{
+    state.searchTerm = e.target.value;
+    render();
+    const sb = document.getElementById('searchBox');
+    sb.focus();
+    sb.setSelectionRange(state.searchTerm.length, state.searchTerm.length);
+  });
+  document.getElementById('domainFilter').addEventListener('change', (e)=>{
+    state.filterDomain = e.target.value || null;
+    render();
+  });
+  app.querySelectorAll('.browse-item[data-num]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const num = parseInt(el.dataset.num,10);
+      openBrowseDetail(state.all.find(q=>q.num===num));
+    });
+  });
+}
+
+function openBrowseDetail(q){
+  state.mode = 'browseDetail';
+  state.detailQ = q;
+  render();
+}
+
+function renderBrowseDetail(){
+  const q = state.detailQ;
+  const dom = domainInfo(q.domain);
+  const choicesHtml = q.options.map(opt=>{
+    const isCorrectOpt = q.correct.includes(opt);
+    return `<div class="choice ${isCorrectOpt?'correct':''}">
+      <div class="mark">${isCorrectOpt?'✓':''}</div>
+      <div class="ctext">${escapeHtml(opt)}</div>
+    </div>`;
+  }).join('');
+  app.innerHTML = `
+    <div class="header">
+      <div class="brand">TYSONBLOG <span>App Builder</span></div>
+      <div class="counter">第${q.num}問</div>
+    </div>
+    <button class="btn-ghost" id="btnBack" style="margin-bottom:14px;width:100%;">← 一覧へ戻る</button>
+    <div class="card">
+      <div class="qmeta">第${q.num}問 ${isMulti(q) ? `<span class="qmulti">複数選択(${q.correct.length}つ)</span>` : '<span class="qmulti">単一選択</span>'}<span class="qdomain">${dom.name}</span></div>
+      <div class="question">${escapeHtml(q.question)}</div>
+      <div>${choicesHtml}</div>
+      <div class="explain show">${escapeHtml(q.explanation)}</div>
+    </div>
+  `;
+  document.getElementById('btnBack').addEventListener('click', ()=>{ state.mode='browse'; render(); });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function init(){
+  app.innerHTML = `<div class="loading">読み込み中...</div>`;
+  try{
+    const res = await fetch(DATA_URL);
+    const data = await res.json();
+    state.all = data
+      .filter(q => !q.error && q.question && q.options && q.options.length)
+      .map(q => ({...q, domain: classifyDomain(q)}));
+    state.mode = 'home';
+    render();
+  }catch(e){
+    app.innerHTML = `<div class="loading">データの読み込みに失敗しました。<br>${escapeHtml(String(e))}</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
