@@ -95,6 +95,7 @@ select{ width:100%; padding:13px 14px; border-radius:10px; background:var(--pane
 <script>
 const DATA_URL = 'https://raw.githubusercontent.com/ryotanopon422422-cmyk/tysonblog-sfadmin-quiz/main/appbuilder-questions.json';
 const STATS_KEY = 'appbuilder_domain_stats_v1';
+const WRONG_KEY = 'appbuilder_wrong_nums_v1';
 
 // ---- 出題分野の定義 (Salesforce公式Exam Guideより) ----
 const DOMAINS = [
@@ -141,6 +142,17 @@ function saveStats(stats){
   try{ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }catch(e){}
 }
 
+function loadWrongNums(){
+  try{
+    const raw = localStorage.getItem(WRONG_KEY);
+    if(raw) return new Set(JSON.parse(raw));
+  }catch(e){}
+  return new Set();
+}
+function saveWrongNums(set){
+  try{ localStorage.setItem(WRONG_KEY, JSON.stringify(Array.from(set))); }catch(e){}
+}
+
 const state = {
   all: [],
   mode: null,
@@ -153,7 +165,8 @@ const state = {
   quizSize: 0,
   searchTerm: '',
   filterDomain: null,
-  stats: loadStats()
+  stats: loadStats(),
+  wrongNums: loadWrongNums()
 };
 
 const app = document.getElementById('app');
@@ -227,6 +240,7 @@ function renderHome(){
       </div>
       <button class="btn-primary" id="btnStartCustom" style="width:100%; margin-bottom:10px;">この問題数でランダム開始</button>
       <button class="btn-block" data-run="${total}"><b>全${total}問ランダム</b><small>本番同様に一周</small></button>
+      ${state.wrongNums.size > 0 ? `<button class="btn-block" id="btnReviewWrong"><b>間違えた問題だけ復習(${state.wrongNums.size}問)</b><small>過去に不正解だった問題のみランダム出題</small></button>` : ''}
       <button class="btn-block" id="btnBrowse"><b>全問題を見る</b><small>検索・一覧から復習したい問題を選ぶ</small></button>
     </div>
 
@@ -246,6 +260,13 @@ function renderHome(){
   document.getElementById('btnStartCustom').addEventListener('click', ()=>{
     startQuiz(Math.min(parseInt(slider.value,10), total), null);
   });
+  const reviewBtn = document.getElementById('btnReviewWrong');
+  if(reviewBtn){
+    reviewBtn.addEventListener('click', ()=>{
+      const pool = state.all.filter(q=>state.wrongNums.has(q.num));
+      startQuiz(pool.length, null, pool);
+    });
+  }
   document.getElementById('btnDomainsDetail').addEventListener('click', ()=>{ state.mode='domains'; render(); });
   document.getElementById('btnBrowse').addEventListener('click', ()=>{
     state.mode='browse'; state.searchTerm=''; state.filterDomain=null; render();
@@ -316,8 +337,8 @@ function renderDomains(){
   });
 }
 
-function startQuiz(n, domainId){
-  const pool = domainId ? state.all.filter(q=>q.domain===domainId) : state.all;
+function startQuiz(n, domainId, customPool){
+  const pool = customPool ? customPool : (domainId ? state.all.filter(q=>q.domain===domainId) : state.all);
   state.queue = shuffle(pool).slice(0, n);
   state.idx = 0;
   state.correctCount = 0;
@@ -327,6 +348,7 @@ function startQuiz(n, domainId){
   state.selected = new Set();
   state.answered = false;
   state.currentDomainFilter = domainId;
+  state.currentCustomPool = customPool || null;
   render();
 }
 
@@ -376,8 +398,8 @@ function renderQuiz(){
     <div class="card">
       <div class="qmeta">第${q.num}問 ${multi ? `<span class="qmulti">複数選択(${q.correct.length}つ)</span>` : '<span class="qmulti">単一選択</span>'}<span class="qdomain">${dom.name}</span></div>
       <div class="question">${escapeHtml(q.question)}</div>
-      <div id="choices">${choicesHtml}</div>
       <div class="result-banner ${state.answered ? 'show '+(allCorrect?'ok':'ng') : ''}">${state.answered ? (allCorrect ? '正解です！' : '不正解...') : ''}</div>
+      <div id="choices">${choicesHtml}</div>
       <div class="actions">
         ${state.answered
           ? `<button class="btn-primary" id="btnNext">${state.idx+1 < total ? '次の問題へ' : '結果を見る'}</button>`
@@ -424,6 +446,11 @@ function submitAnswer(){
   if(isCorrect) st.correct++;
   state.stats[q.domain] = st;
   saveStats(state.stats);
+
+  // 苦手問題リストを更新: 不正解なら追加、正解なら克服として除外
+  if(isCorrect) state.wrongNums.delete(q.num);
+  else state.wrongNums.add(q.num);
+  saveWrongNums(state.wrongNums);
 
   render();
 }
@@ -489,7 +516,7 @@ function renderEnd(){
     ${breakHtml}
     ${wrongHtml}
   `;
-  document.getElementById('btnRetry').addEventListener('click', ()=> startQuiz(state.quizSize, state.currentDomainFilter));
+  document.getElementById('btnRetry').addEventListener('click', ()=> startQuiz(state.quizSize, state.currentDomainFilter, state.currentCustomPool));
   document.getElementById('btnDomainsGo').addEventListener('click', ()=>{ state.mode='domains'; render(); });
   document.getElementById('btnHome').addEventListener('click', ()=>{ state.mode='home'; render(); });
   app.querySelectorAll('.browse-item[data-num]').forEach(el=>{
@@ -518,7 +545,7 @@ function renderBrowse(){
       <option value="">すべての分野</option>
       ${domainOptions}
     </select>
-    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホームへ戻る</button>
+    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホーユへ戻る</button>
     <div id="list">
       ${filtered.map(q=>`
         <div class="browse-item" data-num="${q.num}">
