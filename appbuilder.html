@@ -217,12 +217,7 @@ function renderHome(){
       <div class="counter">全${total}問</div>
     </div>
 
-    <div class="section-title" style="margin-top:0;">分野別正答率${totalAsked===0 ? '(まだ演習記録なし)' : ''}</div>
-    ${weakest ? `<div class="result-banner show ng" style="margin-bottom:10px;">苦手分野: ${weakest.d.name}(${Math.round(weakest.st.correct/weakest.st.asked*100)}%) — 重点的に演習しましょう</div>` : ''}
-    ${domainSummaryHtml}
-    <button class="btn-ghost" id="btnDomainsDetail" style="width:100%;margin:4px 0 22px;">分野別に絞って演習する →</button>
-
-    <div class="card">
+    <div class="card" style="margin-bottom:22px;">
       <div class="qmeta">MODE SELECT</div>
       <div class="question" style="margin-bottom:18px;">Salesforce認定Platformアプリケーションビルダー試験対策。学習モードを選んでください。</div>
 
@@ -234,6 +229,12 @@ function renderHome(){
       <button class="btn-block" data-run="${total}"><b>全${total}問ランダム</b><small>本番同様に一周</small></button>
       <button class="btn-block" id="btnBrowse"><b>全問題を見る</b><small>検索・一覧から復習したい問題を選ぶ</small></button>
     </div>
+
+    <div class="section-title" style="margin-top:0;">分野別正答率${totalAsked===0 ? '(まだ演習記録なし)' : ''}</div>
+    ${weakest ? `<div class="result-banner show ng" style="margin-bottom:10px;">苦手分野: ${weakest.d.name}(${Math.round(weakest.st.correct/weakest.st.asked*100)}%) — 重点的に演習しましょう</div>` : ''}
+    ${domainSummaryHtml}
+    <button class="btn-ghost" id="btnDomainsDetail" style="width:100%;margin:4px 0 22px;">分野別に絞って演習する →</button>
+
     <div class="footer-note">Source: TysonBlog — Salesforce認定Platformアプリケーションビルダー試験対策<br>分野分類はSalesforce公式Exam Guideの出題比率に基づく自動判定です</div>
   `;
   app.querySelectorAll('[data-run]').forEach(b=>{
@@ -377,13 +378,13 @@ function renderQuiz(){
       <div class="question">${escapeHtml(q.question)}</div>
       <div id="choices">${choicesHtml}</div>
       <div class="result-banner ${state.answered ? 'show '+(allCorrect?'ok':'ng') : ''}">${state.answered ? (allCorrect ? '正解です！' : '不正解...') : ''}</div>
-      <div class="explain ${state.answered ? 'show':''}">${state.answered ? escapeHtml(q.explanation) : ''}</div>
       <div class="actions">
         ${state.answered
           ? `<button class="btn-primary" id="btnNext">${state.idx+1 < total ? '次の問題へ' : '結果を見る'}</button>`
           : `<button class="btn-primary" id="btnSubmit" ${state.selected.size===0?'disabled':''}>回答する</button>`}
         <button class="btn-ghost" id="btnQuit">中断してホームへ</button>
       </div>
+      <div class="explain ${state.answered ? 'show':''}">${state.answered ? escapeHtml(q.explanation) : ''}</div>
     </div>
   `;
 
