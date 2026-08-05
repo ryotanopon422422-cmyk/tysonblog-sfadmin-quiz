@@ -96,6 +96,7 @@ select{ width:100%; padding:13px 14px; border-radius:10px; background:var(--pane
 const DATA_URL = 'https://raw.githubusercontent.com/ryotanopon422422-cmyk/tysonblog-sfadmin-quiz/main/appbuilder-questions.json';
 const STATS_KEY = 'appbuilder_domain_stats_v1';
 const WRONG_KEY = 'appbuilder_wrong_nums_v1';
+const FLAG_KEY = 'appbuilder_flagged_nums_v1';
 
 // ---- 出題分野の定義 (Salesforce公式Exam Guideより) ----
 const DOMAINS = [
@@ -153,6 +154,17 @@ function saveWrongNums(set){
   try{ localStorage.setItem(WRONG_KEY, JSON.stringify(Array.from(set))); }catch(e){}
 }
 
+function loadFlaggedNums(){
+  try{
+    const raw = localStorage.getItem(FLAG_KEY);
+    if(raw) return new Set(JSON.parse(raw));
+  }catch(e){}
+  return new Set();
+}
+function saveFlaggedNums(set){
+  try{ localStorage.setItem(FLAG_KEY, JSON.stringify(Array.from(set))); }catch(e){}
+}
+
 const state = {
   all: [],
   mode: null,
@@ -165,8 +177,10 @@ const state = {
   quizSize: 0,
   searchTerm: '',
   filterDomain: null,
+  filterFlagged: false,
   stats: loadStats(),
-  wrongNums: loadWrongNums()
+  wrongNums: loadWrongNums(),
+  flaggedNums: loadFlaggedNums()
 };
 
 const app = document.getElementById('app');
@@ -241,6 +255,7 @@ function renderHome(){
       <button class="btn-primary" id="btnStartCustom" style="width:100%; margin-bottom:10px;">この問題数でランダム開始</button>
       <button class="btn-block" data-run="${total}"><b>全${total}問ランダム</b><small>本番同様に一周</small></button>
       ${state.wrongNums.size > 0 ? `<button class="btn-block" id="btnReviewWrong"><b>間違えた問題だけ復習(${state.wrongNums.size}問)</b><small>過去に不正解だった問題のみランダム出題</small></button>` : ''}
+      ${state.flaggedNums.size > 0 ? `<button class="btn-block" id="btnReviewFlagged"><b>🚩 フラグした問題だけ復習(${state.flaggedNums.size}問)</b><small>正解しても解除されません。手動で解除するまで残ります</small></button>` : ''}
       <button class="btn-block" id="btnBrowse"><b>全問題を見る</b><small>検索・一覧から復習したい問題を選ぶ</small></button>
     </div>
 
@@ -267,9 +282,16 @@ function renderHome(){
       startQuiz(pool.length, null, pool);
     });
   }
+  const reviewFlagBtn = document.getElementById('btnReviewFlagged');
+  if(reviewFlagBtn){
+    reviewFlagBtn.addEventListener('click', ()=>{
+      const pool = state.all.filter(q=>state.flaggedNums.has(q.num));
+      startQuiz(pool.length, null, pool);
+    });
+  }
   document.getElementById('btnDomainsDetail').addEventListener('click', ()=>{ state.mode='domains'; render(); });
   document.getElementById('btnBrowse').addEventListener('click', ()=>{
-    state.mode='browse'; state.searchTerm=''; state.filterDomain=null; render();
+    state.mode='browse'; state.searchTerm=''; state.filterDomain=null; state.filterFlagged=false; render();
   });
   app.querySelectorAll('.domain-card[data-domain]').forEach(el=>{
     el.addEventListener('click', ()=>{
@@ -396,7 +418,10 @@ function renderQuiz(){
       <div>問題番号 <b>#${q.num}</b></div>
     </div>
     <div class="card">
-      <div class="qmeta">第${q.num}問 ${multi ? `<span class="qmulti">複数選択(${q.correct.length}つ)</span>` : '<span class="qmulti">単一選択</span>'}<span class="qdomain">${dom.name}</span></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div class="qmeta" style="margin-bottom:10px;">第${q.num}問 ${multi ? `<span class="qmulti">複数選択(${q.correct.length}つ)</span>` : '<span class="qmulti">単一選択</span>'}<span class="qdomain">${dom.name}</span></div>
+        <button id="btnFlag" title="${state.flaggedNums.has(q.num) ? 'フラグ解除' : 'フラグを立てる'}" style="flex:0 0 auto; background:${state.flaggedNums.has(q.num) ? '#4a2a1f' : 'var(--panel2)'}; border:1px solid ${state.flaggedNums.has(q.num) ? 'var(--accent2)' : 'var(--border)'}; color:${state.flaggedNums.has(q.num) ? 'var(--accent2)' : 'var(--sub)'}; border-radius:10px; padding:8px 12px; font-size:1rem; cursor:pointer;">🚩</button>
+      </div>
       <div class="question">${escapeHtml(q.question)}</div>
       <div class="result-banner ${state.answered ? 'show '+(allCorrect?'ok':'ng') : ''}">${state.answered ? (allCorrect ? '正解です！' : '不正解...') : ''}</div>
       <div id="choices">${choicesHtml}</div>
@@ -428,6 +453,13 @@ function renderQuiz(){
   } else {
     document.getElementById('btnNext').addEventListener('click', nextQuestion);
   }
+  document.getElementById('btnFlag').addEventListener('click', ()=>{
+    // フラグは手動トグル: 正解しても自動解除されない。もう一度押すと解除。
+    if(state.flaggedNums.has(q.num)) state.flaggedNums.delete(q.num);
+    else state.flaggedNums.add(q.num);
+    saveFlaggedNums(state.flaggedNums);
+    render();
+  });
   document.getElementById('btnQuit').addEventListener('click', ()=>{ state.mode='home'; render(); });
 }
 
@@ -511,7 +543,7 @@ function renderEnd(){
       <p>${total}問中 ${state.correctCount}問正解</p>
       <button class="btn-primary" id="btnRetry" style="width:100%;margin-bottom:10px;">同じ条件でもう一度(ランダム)</button>
       <button class="btn-ghost" id="btnDomainsGo" style="width:100%;margin-bottom:10px;">分野別成績を見る</button>
-      <button class="btn-ghost" id="btnHome" style="width:100%;">ホームへ戻る</button>
+      <button class="btn-ghost" id="btnHome" style="width:100%;">ホーユへ戻る</button>
     </div>
     ${breakHtml}
     ${wrongHtml}
@@ -531,6 +563,7 @@ function renderBrowse(){
   const term = state.searchTerm.trim();
   let filtered = state.all;
   if(state.filterDomain) filtered = filtered.filter(q=>q.domain===state.filterDomain);
+  if(state.filterFlagged) filtered = filtered.filter(q=>state.flaggedNums.has(q.num));
   if(term) filtered = filtered.filter(q => q.question.includes(term) || String(q.num)===term);
 
   const domainOptions = DOMAINS.map(d=>`<option value="${d.id}" ${state.filterDomain===d.id?'selected':''}>${d.name}</option>`).join('');
@@ -545,11 +578,15 @@ function renderBrowse(){
       <option value="">すべての分野</option>
       ${domainOptions}
     </select>
-    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホーユへ戻る</button>
+    <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:.85rem; color:var(--sub); cursor:pointer;">
+      <input type="checkbox" id="flagFilter" ${state.filterFlagged?'checked':''}> 🚩 フラグした問題のみ表示(${state.flaggedNums.size}問)
+    </label>
+    ${state.filterFlagged && filtered.length > 0 ? `<button class="btn-primary" id="btnStartFlagged" style="width:100%;margin-bottom:14px;">この${filtered.length}問で演習開始</button>` : ''}
+    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホームへ戻る</button>
     <div id="list">
       ${filtered.map(q=>`
         <div class="browse-item" data-num="${q.num}">
-          <div class="bmeta">第${q.num}問 <span class="qdomain" style="margin-left:0;">${domainInfo(q.domain).name}</span></div>
+          <div class="bmeta">第${q.num}問 <span class="qdomain" style="margin-left:0;">${domainInfo(q.domain).name}</span>${state.flaggedNums.has(q.num) ? '<span class="qdomain" style="background:#4a2a1f;color:var(--accent2);">🚩</span>' : ''}</div>
           <div class="bq">${escapeHtml(q.question.slice(0,70))}${q.question.length>70?'…':''}</div>
         </div>
       `).join('')}
@@ -568,6 +605,16 @@ function renderBrowse(){
     state.filterDomain = e.target.value || null;
     render();
   });
+  document.getElementById('flagFilter').addEventListener('change', (e)=>{
+    state.filterFlagged = e.target.checked;
+    render();
+  });
+  const startFlaggedBtn = document.getElementById('btnStartFlagged');
+  if(startFlaggedBtn){
+    startFlaggedBtn.addEventListener('click', ()=>{
+      startQuiz(filtered.length, null, filtered);
+    });
+  }
   app.querySelectorAll('.browse-item[data-num]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const num = parseInt(el.dataset.num,10);
