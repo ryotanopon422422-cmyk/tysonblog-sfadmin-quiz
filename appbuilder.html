@@ -97,6 +97,7 @@ const DATA_URL = 'https://raw.githubusercontent.com/ryotanopon422422-cmyk/tysonb
 const STATS_KEY = 'appbuilder_domain_stats_v1';
 const WRONG_KEY = 'appbuilder_wrong_nums_v1';
 const FLAG_KEY = 'appbuilder_flagged_nums_v1';
+const PERQ_KEY = 'appbuilder_perq_stats_v1';
 
 // ---- 出題分野の定義 (Salesforce公式Exam Guideより) ----
 const DOMAINS = [
@@ -165,6 +166,17 @@ function saveFlaggedNums(set){
   try{ localStorage.setItem(FLAG_KEY, JSON.stringify(Array.from(set))); }catch(e){}
 }
 
+function loadPerQStats(){
+  try{
+    const raw = localStorage.getItem(PERQ_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return {};
+}
+function savePerQStats(stats){
+  try{ localStorage.setItem(PERQ_KEY, JSON.stringify(stats)); }catch(e){}
+}
+
 const state = {
   all: [],
   mode: null,
@@ -180,10 +192,36 @@ const state = {
   filterFlagged: false,
   stats: loadStats(),
   wrongNums: loadWrongNums(),
-  flaggedNums: loadFlaggedNums()
+  flaggedNums: loadFlaggedNums(),
+  perQStats: loadPerQStats()
 };
 
 const app = document.getElementById('app');
+let quizTimerInterval = null;
+function stopQuizTimer(){
+  if(quizTimerInterval){ clearInterval(quizTimerInterval); quizTimerInterval = null; }
+}
+function formatTime(sec){
+  const s = Math.max(0, Math.round(sec));
+  const mm = Math.floor(s/60), ss = s%60;
+  return `${mm}:${String(ss).padStart(2,'0')}`;
+}
+function cleanExplanation(q){
+  const optionLines = new Set();
+  (q.options||[]).forEach(o=>{
+    String(o).split('\n').forEach(line=>{ const t=line.trim(); if(t) optionLines.add(t); });
+    optionLines.add(String(o).trim());
+  });
+  const lines = (q.explanation||'').split('\n');
+  const cleaned = lines.filter(line=>{
+    const t = line.trim();
+    if(!t) return true;
+    if(t.startsWith('□')) return false;
+    if(optionLines.has(t)) return false;
+    return true;
+  });
+  return cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 function shuffle(arr){
   const a = arr.slice();
@@ -192,6 +230,19 @@ function shuffle(arr){
     [a[i],a[j]]=[a[j],a[i]];
   }
   return a;
+}
+
+// 正答数・誤答数がともに0(未着手)の問題を10%選ばれやすくする重み付きシャッフル
+function weightedShuffle(arr){
+  return arr
+    .map(q=>{
+      const pq = state.perQStats[q.num] || {correct:0, wrong:0};
+      const weight = (pq.correct===0 && pq.wrong===0) ? 1.1 : 1.0;
+      const key = -Math.log(Math.random()) / weight; // 小さいほど先に選ばれる
+      return {q, key};
+    })
+    .sort((a,b)=>a.key-b.key)
+    .map(x=>x.q);
 }
 
 function isMulti(q){ return q.correct.length > 1; }
@@ -206,6 +257,7 @@ function accClass(pct, asked){
 
 function render(){
   window.scrollTo(0,0);
+  if(state.mode !== 'quiz') stopQuizTimer();
   if(state.mode === 'home') return renderHome();
   if(state.mode === 'domains') return renderDomains();
   if(state.mode === 'quiz') return renderQuiz();
@@ -249,7 +301,7 @@ function renderHome(){
       <div class="question" style="margin-bottom:18px;">Salesforce認定Platformアプリケーションビルダー試験対策。学習モードを選んでください。</div>
 
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
-        <input type="range" id="qCountSlider" min="1" max="50" value="10" style="flex:1;">
+        <input type="range" id="qCountSlider" min="1" max="60" value="10" style="flex:1;">
         <div style="font-family:'JetBrains Mono',monospace; font-weight:700; min-width:52px; text-align:right;"><span id="qCountLabel">10</span>問</div>
       </div>
       <button class="btn-primary" id="btnStartCustom" style="width:100%; margin-bottom:10px;">この問題数でランダム開始</button>
@@ -361,7 +413,7 @@ function renderDomains(){
 
 function startQuiz(n, domainId, customPool){
   const pool = customPool ? customPool : (domainId ? state.all.filter(q=>q.domain===domainId) : state.all);
-  state.queue = shuffle(pool).slice(0, n);
+  state.queue = weightedShuffle(pool).slice(0, n);
   state.idx = 0;
   state.correctCount = 0;
   state.wrongList = [];
@@ -371,7 +423,22 @@ function startQuiz(n, domainId, customPool){
   state.answered = false;
   state.currentDomainFilter = domainId;
   state.currentCustomPool = customPool || null;
+  state.history = {};
+  state.timerEnd = Date.now() + 90 * state.quizSize * 1000;
   render();
+}
+
+function goToQuestion(newIdx){
+  state.history[state.idx] = { selected: new Set(state.selected), answered: state.answered };
+  state.idx = newIdx;
+  const h = state.history[newIdx];
+  if(h){ state.selected = new Set(h.selected); state.answered = h.answered; }
+  else { state.selected = new Set(); state.answered = false; }
+  render();
+}
+
+function prevQuestion(){
+  if(state.idx > 0) goToQuestion(state.idx - 1);
 }
 
 function currentQ(){ return state.queue[state.idx]; }
@@ -382,6 +449,7 @@ function renderQuiz(){
   const pct = Math.round((state.idx / total) * 100);
   const multi = isMulti(q);
   const dom = domainInfo(q.domain);
+  const pq = state.perQStats[q.num] || {correct:0, wrong:0};
 
   const choicesHtml = q.options.map((opt, i)=>{
     let cls = 'choice';
@@ -411,11 +479,14 @@ function renderQuiz(){
       <div class="brand">TYSONBLOG <span>App Builder</span></div>
       <div class="counter">${state.idx+1} / ${total}</div>
     </div>
+    <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+      <span id="quizTimer" style="font-family:'JetBrains Mono',monospace; font-size:.8rem; font-weight:700; color:var(--sub);"></span>
+    </div>
     <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
     <div class="score-panel">
       <div>正解 <b style="color:var(--good)">${state.correctCount}</b></div>
       <div>不正解 <b style="color:var(--bad)">${state.wrongList.length}</b></div>
-      <div>問題番号 <b>#${q.num}</b></div>
+      <div>問題番号 <b>#${q.num}</b> ${(pq.correct+pq.wrong) > 0 ? `<span style="font-family:'JetBrains Mono',monospace; font-size:.72rem; font-weight:400;"><span style="color:var(--good)">✓${pq.correct}</span> <span style="color:var(--bad)">✕${pq.wrong}</span></span>` : ''}</div>
     </div>
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
@@ -426,12 +497,13 @@ function renderQuiz(){
       <div class="result-banner ${state.answered ? 'show '+(allCorrect?'ok':'ng') : ''}">${state.answered ? (allCorrect ? '正解です！' : '不正解...') : ''}</div>
       <div id="choices">${choicesHtml}</div>
       <div class="actions">
+        ${state.idx > 0 ? `<button class="btn-ghost" id="btnPrev" style="flex:0 0 auto;">← 一問戻る</button>` : ''}
         ${state.answered
           ? `<button class="btn-primary" id="btnNext">${state.idx+1 < total ? '次の問題へ' : '結果を見る'}</button>`
-          : `<button class="btn-primary" id="btnSubmit" ${state.selected.size===0?'disabled':''}>回答する</button>`}
+          : `<button class="btn-primary" id="btnSubmit" ${(multi ? state.selected.size<2 : state.selected.size===0)?'disabled':''}>回答する</button>`}
         <button class="btn-ghost" id="btnQuit">中断してホームへ</button>
       </div>
-      <div class="explain ${state.answered ? 'show':''}">${state.answered ? escapeHtml(q.explanation) : ''}</div>
+      <div class="explain ${state.answered ? 'show':''}">${state.answered ? escapeHtml(cleanExplanation(q)) : ''}</div>
     </div>
   `;
 
@@ -461,6 +533,26 @@ function renderQuiz(){
     render();
   });
   document.getElementById('btnQuit').addEventListener('click', ()=>{ state.mode='home'; render(); });
+  const prevBtn = document.getElementById('btnPrev');
+  if(prevBtn) prevBtn.addEventListener('click', prevQuestion);
+
+  // タイマー: 制限時間を超えても回答は可能。表示のみ更新し、フル再描画はしない。
+  stopQuizTimer();
+  const timerEl = document.getElementById('quizTimer');
+  const updateTimer = ()=>{
+    const remainSec = (state.timerEnd - Date.now()) / 1000;
+    const el = document.getElementById('quizTimer');
+    if(!el){ stopQuizTimer(); return; }
+    if(remainSec <= 0){
+      el.textContent = `時間切れ +${formatTime(-remainSec)}`;
+      el.style.color = 'var(--bad)';
+    } else {
+      el.textContent = `残り ${formatTime(remainSec)}`;
+      el.style.color = remainSec <= 60 ? 'var(--bad)' : (remainSec <= 300 ? 'var(--accent2)' : 'var(--sub)');
+    }
+  };
+  updateTimer();
+  quizTimerInterval = setInterval(updateTimer, 1000);
 }
 
 function submitAnswer(){
@@ -484,15 +576,18 @@ function submitAnswer(){
   else state.wrongNums.add(q.num);
   saveWrongNums(state.wrongNums);
 
+  // 問題ごとの正答数・誤答数を記録
+  const pq = state.perQStats[q.num] || {correct:0, wrong:0};
+  if(isCorrect) pq.correct++; else pq.wrong++;
+  state.perQStats[q.num] = pq;
+  savePerQStats(state.perQStats);
+
   render();
 }
 
 function nextQuestion(){
   if(state.idx+1 < state.quizSize){
-    state.idx++;
-    state.selected = new Set();
-    state.answered = false;
-    render();
+    goToQuestion(state.idx + 1);
   } else {
     state.mode = 'end';
     render();
@@ -543,7 +638,7 @@ function renderEnd(){
       <p>${total}問中 ${state.correctCount}問正解</p>
       <button class="btn-primary" id="btnRetry" style="width:100%;margin-bottom:10px;">同じ条件でもう一度(ランダム)</button>
       <button class="btn-ghost" id="btnDomainsGo" style="width:100%;margin-bottom:10px;">分野別成績を見る</button>
-      <button class="btn-ghost" id="btnHome" style="width:100%;">ホーユへ戻る</button>
+      <button class="btn-ghost" id="btnHome" style="width:100%;">ホームへ戻る</button>
     </div>
     ${breakHtml}
     ${wrongHtml}
@@ -582,7 +677,7 @@ function renderBrowse(){
       <input type="checkbox" id="flagFilter" ${state.filterFlagged?'checked':''}> 🚩 フラグした問題のみ表示(${state.flaggedNums.size}問)
     </label>
     ${state.filterFlagged && filtered.length > 0 ? `<button class="btn-primary" id="btnStartFlagged" style="width:100%;margin-bottom:14px;">この${filtered.length}問で演習開始</button>` : ''}
-    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホームへ戻る</button>
+    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホーユへ戻る</button>
     <div id="list">
       ${filtered.map(q=>`
         <div class="browse-item" data-num="${q.num}">
@@ -632,6 +727,7 @@ function openBrowseDetail(q){
 function renderBrowseDetail(){
   const q = state.detailQ;
   const dom = domainInfo(q.domain);
+  const pq = state.perQStats[q.num] || {correct:0, wrong:0};
   const choicesHtml = q.options.map(opt=>{
     const isCorrectOpt = q.correct.includes(opt);
     return `<div class="choice ${isCorrectOpt?'correct':''}">
@@ -642,14 +738,14 @@ function renderBrowseDetail(){
   app.innerHTML = `
     <div class="header">
       <div class="brand">TYSONBLOG <span>App Builder</span></div>
-      <div class="counter">第${q.num}問</div>
+      <div class="counter">第${q.num}問 ${(pq.correct+pq.wrong) > 0 ? `<span style="color:var(--good)">✓${pq.correct}</span> <span style="color:var(--bad)">✕${pq.wrong}</span>` : ''}</div>
     </div>
     <button class="btn-ghost" id="btnBack" style="margin-bottom:14px;width:100%;">← 一覧へ戻る</button>
     <div class="card">
       <div class="qmeta">第${q.num}問 ${isMulti(q) ? `<span class="qmulti">複数選択(${q.correct.length}つ)</span>` : '<span class="qmulti">単一選択</span>'}<span class="qdomain">${dom.name}</span></div>
       <div class="question">${escapeHtml(q.question)}</div>
       <div>${choicesHtml}</div>
-      <div class="explain show">${escapeHtml(q.explanation)}</div>
+      <div class="explain show">${escapeHtml(cleanExplanation(q))}</div>
     </div>
   `;
   document.getElementById('btnBack').addEventListener('click', ()=>{ state.mode='browse'; render(); });
