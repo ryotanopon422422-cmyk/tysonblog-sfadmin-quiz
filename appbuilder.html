@@ -677,7 +677,7 @@ function renderBrowse(){
       <input type="checkbox" id="flagFilter" ${state.filterFlagged?'checked':''}> 🚩 フラグした問題のみ表示(${state.flaggedNums.size}問)
     </label>
     ${state.filterFlagged && filtered.length > 0 ? `<button class="btn-primary" id="btnStartFlagged" style="width:100%;margin-bottom:14px;">この${filtered.length}問で演習開始</button>` : ''}
-    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホーユへ戻る</button>
+    <button class="btn-ghost" id="btnBackHome" style="margin-bottom:14px;width:100%;">← ホームへ戻る</button>
     <div id="list">
       ${filtered.map(q=>`
         <div class="browse-item" data-num="${q.num}">
