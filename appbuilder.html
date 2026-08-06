@@ -248,12 +248,12 @@ function shuffle(arr){
   return a;
 }
 
-// 正答数・誤答数がともに0(未着手)の問題を10%選ばれやすくする重み付きシャッフル
+// 正答数・誤答数がともに0(未着手)の問題を30%選ばれやすくする重み付きシャッフル
 function weightedShuffle(arr){
   return arr
     .map(q=>{
       const pq = state.perQStats[q.num] || {correct:0, wrong:0};
-      const weight = (pq.correct===0 && pq.wrong===0) ? 1.1 : 1.0;
+      const weight = (pq.correct===0 && pq.wrong===0) ? 1.3 : 1.0;
       const key = -Math.log(Math.random()) / weight; // 小さいほど先に選ばれる
       return {q, key};
     })
@@ -306,26 +306,36 @@ function renderHome(){
     .filter(x=>x.st.asked >= 3)
     .sort((a,b)=> (a.st.correct/a.st.asked) - (b.st.correct/b.st.asked))[0];
 
+  const answeredCount = state.all.filter(q=>{
+    const pq = state.perQStats[q.num] || {correct:0, wrong:0};
+    return (pq.correct + pq.wrong) > 0;
+  }).length;
+  const correctedCount = state.all.filter(q=>(state.perQStats[q.num]||{correct:0}).correct > 0).length;
+  const overallAccuracy = answeredCount > 0 ? Math.round((correctedCount / answeredCount) * 100) : null;
+
   app.innerHTML = `
     <div class="header">
       <div class="brand">TYSONBLOG <span>App Builder</span></div>
-      <div class="counter">全${total}問</div>
+      <div style="text-align:right; font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--sub); line-height:1.5;">
+        <div>回答 <b style="color:var(--ink);">${answeredCount}</b>/${total} ・ 正解 <b style="color:var(--good);">${correctedCount}</b>/${total}</div>
+        <div>正答率 <b style="color:${overallAccuracy===null?'var(--sub)':'var(--accent2)'};">${overallAccuracy===null ? '—' : overallAccuracy+'%'}</b></div>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:22px;">
-      <div class="qmeta">MODE SELECT</div>
-      <div class="question" style="margin-bottom:18px;">Salesforce認定Platformアプリケーションビルダー試験対策。学習モードを選んでください。</div>
+        <div class="qmeta">MODE SELECT</div>
+        <div class="question" style="margin-bottom:18px;">Salesforce認定Platformアプリケーションビルダー試験対策。学習モードを選んでください。</div>
 
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
-        <input type="range" id="qCountSlider" min="1" max="60" value="10" style="flex:1;">
-        <div style="font-family:'JetBrains Mono',monospace; font-weight:700; min-width:52px; text-align:right;"><span id="qCountLabel">10</span>問</div>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+          <input type="range" id="qCountSlider" min="1" max="60" value="10" style="flex:1;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; min-width:52px; text-align:right;"><span id="qCountLabel">10</span>問</div>
+        </div>
+        <button class="btn-primary" id="btnStartCustom" style="width:100%; margin-bottom:10px;">この問題数でランダム開始</button>
+        <button class="btn-block" data-run="${total}"><b>全${total}問ランダム</b><small>本番同様に一周</small></button>
+        ${state.wrongNums.size > 0 ? `<button class="btn-block" id="btnReviewWrong"><b>間違えた問題だけ復習(${state.wrongNums.size}問)</b><small>過去に不正解だった問題のみランダム出題</small></button>` : ''}
+        ${state.flaggedNums.size > 0 ? `<button class="btn-block" id="btnReviewFlagged"><b>🚩 フラグした問題だけ復習(${state.flaggedNums.size}問)</b><small>正解しても解除されません。手動で解除するまで残ります</small></button>` : ''}
+        <button class="btn-block" id="btnBrowse"><b>全問題を見る</b><small>検索・一覧から復習したい問題を選ぶ</small></button>
       </div>
-      <button class="btn-primary" id="btnStartCustom" style="width:100%; margin-bottom:10px;">この問題数でランダム開始</button>
-      <button class="btn-block" data-run="${total}"><b>全${total}問ランダム</b><small>本番同様に一周</small></button>
-      ${state.wrongNums.size > 0 ? `<button class="btn-block" id="btnReviewWrong"><b>間違えた問題だけ復習(${state.wrongNums.size}問)</b><small>過去に不正解だった問題のみランダム出題</small></button>` : ''}
-      ${state.flaggedNums.size > 0 ? `<button class="btn-block" id="btnReviewFlagged"><b>🚩 フラグした問題だけ復習(${state.flaggedNums.size}問)</b><small>正解しても解除されません。手動で解除するまで残ります</small></button>` : ''}
-      <button class="btn-block" id="btnBrowse"><b>全問題を見る</b><small>検索・一覧から復習したい問題を選ぶ</small></button>
-    </div>
 
     <div class="section-title" style="margin-top:0;">分野別正答率${totalAsked===0 ? '(まだ演習記録なし)' : ''}</div>
     ${weakest ? `<div class="result-banner show ng" style="margin-bottom:10px;">苦手分野: ${weakest.d.name}(${Math.round(weakest.st.correct/weakest.st.asked*100)}%) — 重点的に演習しましょう</div>` : ''}
@@ -613,6 +623,13 @@ function nextQuestion(){
 function renderEnd(){
   const total = state.quizSize;
   const rate = total ? Math.round((state.correctCount/total)*100) : 0;
+  const passed = rate >= 70;
+  let resultMsg;
+  if (rate >= 100) resultMsg = '🎉 満点です！完璧な仕上がり、本当にお見事です！この調子で本番も自信を持って臨みましょう。';
+  else if (rate >= 90) resultMsg = '🎉 合格です！素晴らしい正答率、実力がしっかり身についています。この調子を維持していきましょう。';
+  else if (rate >= 80) resultMsg = '👏 合格です！合格ラインを大きく上回りました。着実に力がついてきています。';
+  else if (rate >= 70) resultMsg = '✅ 合格です！おめでとうございます、しっかり合格ラインを突破しました。';
+  else resultMsg = 'まだ合格ラインには届きませんでしたが、ここからの伸びしろは十分あります。間違えた問題を復習して、次の演習で合格ラインを超えましょう！';
 
   // 今回の演習分の分野別内訳
   const domainBreak = {};
@@ -652,6 +669,7 @@ function renderEnd(){
     <div class="card end-screen">
       <h2>${rate}%</h2>
       <p>${total}問中 ${state.correctCount}問正解</p>
+      <div class="result-banner show ${passed?'ok':'ng'}" style="text-align:left;">${resultMsg}</div>
       <button class="btn-primary" id="btnRetry" style="width:100%;margin-bottom:10px;">同じ条件でもう一度(ランダム)</button>
       <button class="btn-ghost" id="btnDomainsGo" style="width:100%;margin-bottom:10px;">分野別成績を見る</button>
       <button class="btn-ghost" id="btnHome" style="width:100%;">ホームへ戻る</button>
@@ -680,12 +698,14 @@ function renderBrowse(){
 
   const domainOptions = DOMAINS.map(d=>`<option value="${d.id}" ${state.filterDomain===d.id?'selected':''}>${d.name}</option>`).join('');
   const wrongHistoryCount = state.all.filter(q=>(state.perQStats[q.num]||{wrong:0}).wrong > 0).length;
+  const correctedCount = state.all.filter(q=>(state.perQStats[q.num]||{correct:0}).correct > 0).length;
 
   app.innerHTML = `
     <div class="header">
       <div class="brand">TYSONBLOG <span>App Builder</span></div>
       <div class="counter">${filtered.length} / ${state.all.length}問</div>
     </div>
+    <div class="footer-note" style="text-align:left; margin:0 0 14px;">正解したことがある問題: <b style="color:var(--good)">${correctedCount}</b> / ${state.all.length}問</div>
     <input class="search-box" id="searchBox" placeholder="キーワードまたは問題番号で検索..." value="${escapeHtml(state.searchTerm)}">
     <select id="domainFilter">
       <option value="">すべての分野</option>
